@@ -1,6 +1,9 @@
 pipeline {
     agent any
-
+    tools {
+        git 'Default'
+    }
+    
     environment {
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         DOCKERHUB_DEV_REPO = 'san263/deploy_enr'
