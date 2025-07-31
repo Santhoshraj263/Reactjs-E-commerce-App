@@ -1,0 +1,86 @@
+Phase:01 
+
+Dockerfile
+[ec2-user@ip-172-31-10-99 build]$ sudo cat dockerfile 
+FROM nginx:alpine
+
+RUN rm -rf /usr/share/nginx/html/*
+
+COPY . /usr/share/nginx/html/
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+[ec2-user@ip-172-31-10-99 build]$ 
+
+Docker-compose.yml
+[ec2-user@ip-172-31-10-99 build]$ sudo cat docker-compose.yml 
+version: '3'
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    container_name: myreact_container
+[ec2-user@ip-172-31-10-99 build]$ 
+
+
+phase:02 Writing a script for docker build image
+
+[ec2-user@ip-172-31-10-99 build]$ sudo cat deploy.sh 
+#!/bin/bash
+set -e
+
+sudo docker-compose up -d
+[ec2-user@ip-172-31-10-99 build]$ sudo cat build.sh 
+#!/bin/bash
+set -e
+
+IMAGE_NAME="myreactimage"
+
+sudo docker build -t $IMAGE_NAME .
+
+[ec2-user@ip-172-31-10-99 build]$ 
+
+
+jenkins script:
+
+[ec2-user@ip-172-31-10-99 build]$ ls
+Jenkinsfile  asset-manifest.json  deploy.sh           dockerfile   index.html   logo512.png    robots.txt
+_redirects   build.sh             docker-compose.yml  favicon.ico  logo192.png  manifest.json  static
+[ec2-user@ip-172-31-10-99 build]$ sudo cat Jenkinsfile 
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
+        DOCKERHUB_DEV_REPO = 'san263/deploy_enr'
+        DOCKERHUB_PROD_REPO = 'san263/production_env'
+    }
+
+    stages {
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def imageTag = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+                    sh "docker build -t ${imageTag} ."
+                }
+            }
+        }
+
+        stage('Tag & Push Docker Image') {
+            steps {
+                script {
+                    def imageTag = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+                    def targetRepo = env.BRANCH_NAME == 'master' ? env.DOCKERHUB_PROD_REPO : env.DOCKERHUB_DEV_REPO
+
+                    docker.withRegistry('', env.DOCKER_CREDENTIALS_ID) {
+                        sh "docker tag ${imageTag} ${targetRepo}:${imageTag}"
+                        sh "docker push ${targetRepo}:${imageTag}"
+                    }
+                }
+            }
+        }
+    }
+}
+[ec2-user@ip-172-31-10-99 build]$ 
